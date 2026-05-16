@@ -18,12 +18,27 @@ async function persistWorkbookLocal(wb: ExcelJS.Workbook): Promise<void> {
 /** Save after user action — sync to cloud when configured. */
 async function persistWorkbook(wb: ExcelJS.Workbook): Promise<void> {
   await persistWorkbookLocal(wb);
+  markExcelFresh();
   if (cloudStorageEnabled() || !process.env.VERCEL) {
     await pushExcelToCloud();
   }
 }
 
 let writeLock: Promise<void> = Promise.resolve();
+
+/** Skip slow Blob pull right after a write (same warm Vercel instance). */
+const CLOUD_PULL_SKIP_MS = 90_000;
+let skipCloudPullUntil = 0;
+
+function markExcelFresh(): void {
+  skipCloudPullUntil = Date.now() + CLOUD_PULL_SKIP_MS;
+}
+
+async function pullCloudIfNeeded(): Promise<void> {
+  if (!cloudStorageEnabled()) return;
+  if (Date.now() < skipCloudPullUntil) return;
+  await pullExcelFromCloud();
+}
 
 function withLock<T>(fn: () => Promise<T>): Promise<T> {
   const run = writeLock.then(fn);
@@ -261,7 +276,7 @@ function parseAnyRow(row: ExcelJS.Row, rowIndex: number): Registration | null {
 
 async function loadWorkbook(): Promise<ExcelJS.Workbook> {
   await ensureDir();
-  await pullExcelFromCloud();
+  await pullCloudIfNeeded();
   const wb = new ExcelJS.Workbook();
   try {
     await wb.xlsx.readFile(config.excelPath);
@@ -345,7 +360,15 @@ export async function fetchAllRows(): Promise<Registration[]> {
   });
 }
 
-export async function appendRegistration(data: RowData): Promise<{ rowIndex: number }> {
+function readRegistrationRow(ws: ExcelJS.Worksheet, rowIndex: number): Registration {
+  const reg = rowToRegistration(ws.getRow(rowIndex), rowIndex);
+  if (!reg) throw new Error('Row not found');
+  return reg;
+}
+
+export async function appendRegistration(
+  data: RowData,
+): Promise<{ rowIndex: number; registration: Registration }> {
   return withLock(async () => {
     const wb = await loadWorkbook();
     const ws = getSheet(wb);
@@ -353,14 +376,14 @@ export async function appendRegistration(data: RowData): Promise<{ rowIndex: num
     const row = ws.addRow([]);
     writeDataRow(row, data, time);
     await persistWorkbook(wb);
-    return { rowIndex: row.number };
+    return { rowIndex: row.number, registration: readRegistrationRow(ws, row.number) };
   });
 }
 
 export async function updateRegistration(
   rowIndex: number,
   data: RowData & { time?: string },
-): Promise<void> {
+): Promise<Registration> {
   return withLock(async () => {
     const wb = await loadWorkbook();
     const ws = getSheet(wb);
@@ -368,6 +391,7 @@ export async function updateRegistration(
     const time = data.time ?? new Date().toISOString();
     writeDataRow(ws.getRow(rowIndex), data, time);
     await persistWorkbook(wb);
+    return readRegistrationRow(ws, rowIndex);
   });
 }
 

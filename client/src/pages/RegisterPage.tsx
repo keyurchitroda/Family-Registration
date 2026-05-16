@@ -23,11 +23,7 @@ import {
 import { emptyMember } from '../utils/memberRelations';
 import { newMemberSlotCount } from '../utils/presentMembers';
 import { recoverRegistration } from '../utils/recoverRegistration';
-import {
-  payloadToRegistration,
-  refreshRegistrationCaches,
-  upsertRegistrationInCaches,
-} from '../lib/registrationCache';
+import { hardRefreshAfterSave } from '../lib/registrationCache';
 import { playSuccessSound } from '../utils/sound';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -157,18 +153,18 @@ export function RegisterPage() {
   const mutation = useMutation({
     mutationFn: async ({ payload, row }: { payload: RegistrationPayload; row: number | null }) => {
       if (row) {
-        await updateRegistration(row, payload);
-        return { mode: 'update' as const, rowIndex: row, payload };
+        const registration = await updateRegistration(row, payload);
+        return { mode: 'update' as const, registration };
       }
-      const { rowIndex } = await createRegistration(payload);
-      return { mode: 'create' as const, rowIndex, payload };
+      const { registration } = await createRegistration(payload);
+      return { mode: 'create' as const, registration };
     },
-    onSuccess: ({ mode, rowIndex, payload }) => {
-      upsertRegistrationInCaches(qc, payloadToRegistration(rowIndex, payload));
+    onSuccess: async ({ mode, registration }) => {
+      const saved = recoverRegistration(registration);
+      await hardRefreshAfterSave(qc, saved);
       clearForm();
       playSuccessSound();
       toast.success(mode === 'update' ? 'Updated in Excel' : 'Saved to Excel');
-      void refreshRegistrationCaches(qc);
     },
     onError: (e: Error) => toast.error(e.message || 'Save failed'),
   });
@@ -322,7 +318,11 @@ export function RegisterPage() {
               </Button>
               <Button type="submit" size="lg" className="flex-1" disabled={mutation.isPending}>
                 <Save className="h-5 w-5" />
-                {editingRow ? 'Update family' : 'Save registration'}
+                {mutation.isPending
+                  ? 'Saving…'
+                  : editingRow
+                    ? 'Update family'
+                    : 'Save registration'}
               </Button>
             </div>
           </CardContent>
@@ -334,7 +334,7 @@ export function RegisterPage() {
               Clear
             </Button>
             <Button type="submit" variant="secondary" className="flex-1" disabled={mutation.isPending}>
-              {editingRow ? 'Update' : 'Save'}
+              {mutation.isPending ? 'Saving…' : editingRow ? 'Update' : 'Save'}
             </Button>
           </div>
         </div>

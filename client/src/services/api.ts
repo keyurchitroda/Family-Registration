@@ -38,13 +38,21 @@ export type RegistrationPayload = {
   notes?: string;
 };
 
+function cacheBustParams<T extends Record<string, unknown>>(params?: T): T & { _t: number } {
+  return { ...(params ?? ({} as T)), _t: Date.now() };
+}
+
 export async function fetchStats(): Promise<DashboardStats> {
-  const { data } = await api.get<DashboardStats>('/api/stats');
+  const { data } = await api.get<DashboardStats>('/api/stats', {
+    params: cacheBustParams(),
+  });
   return data;
 }
 
 export async function searchRegistrations(q: string): Promise<Registration[]> {
-  const { data } = await api.get<Registration[]>('/api/search', { params: { q } });
+  const { data } = await api.get<Registration[]>('/api/search', {
+    params: cacheBustParams({ q }),
+  });
   return data;
 }
 
@@ -53,7 +61,7 @@ export async function checkDuplicate(
   excludeRow?: number,
 ): Promise<{ duplicate: boolean; existing: Registration | null }> {
   const { data } = await api.get('/api/registrations/check-duplicate', {
-    params: { mobile, excludeRow },
+    params: cacheBustParams({ mobile, excludeRow }),
   });
   return data;
 }
@@ -61,29 +69,41 @@ export async function checkDuplicate(
 export async function findFamilyByMobile(
   mobile: string,
 ): Promise<{ found: boolean; registration: Registration | null }> {
-  const { data } = await api.get('/api/registrations/by-mobile', { params: { mobile } });
+  const { data } = await api.get('/api/registrations/by-mobile', {
+    params: cacheBustParams({ mobile }),
+  });
   return data;
 }
 
-export async function createRegistration(payload: RegistrationPayload): Promise<{ rowIndex: number }> {
-  const { data } = await api.post('/api/registrations', payload);
+export async function createRegistration(
+  payload: RegistrationPayload,
+): Promise<{ rowIndex: number; registration: Registration }> {
+  const { data } = await api.post<{ rowIndex: number; registration: Registration }>(
+    '/api/registrations',
+    payload,
+  );
   return data;
 }
 
 export async function updateRegistration(
   rowIndex: number,
   payload: RegistrationPayload & { time?: string },
-): Promise<void> {
-  await api.put(`/api/registrations/${rowIndex}`, payload, {
-    headers: { 'Content-Type': 'application/json' },
-  });
+): Promise<Registration> {
+  const { data } = await api.put<{ registration: Registration }>(
+    `/api/registrations/${rowIndex}`,
+    payload,
+    { headers: { 'Content-Type': 'application/json' } },
+  );
+  return data.registration;
 }
 
 export async function listRegistrations(params: {
   q?: string;
   date?: string;
 }): Promise<Registration[]> {
-  const { data } = await api.get<Registration[]>('/api/registrations', { params });
+  const { data } = await api.get<Registration[]>('/api/registrations', {
+    params: cacheBustParams(params),
+  });
   return data;
 }
 

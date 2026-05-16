@@ -1,24 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
+import { fetchStats } from '../services/api';
 import type { Registration } from '../types';
-import type { RegistrationPayload } from '../services/api';
-
-export function payloadToRegistration(
-  rowIndex: number,
-  payload: RegistrationPayload & { time?: string },
-): Registration {
-  return {
-    rowIndex,
-    fullName: payload.fullName,
-    mobile: payload.mobile,
-    address: payload.address,
-    totalFamily: payload.totalFamily,
-    presentToday: payload.presentToday,
-    tokenGiven: Boolean(payload.tokenGiven),
-    members: payload.members,
-    notes: payload.notes?.trim() || '',
-    time: payload.time?.trim() || new Date().toISOString(),
-  };
-}
 
 function patchList(old: Registration[] | undefined, reg: Registration): Registration[] {
   if (!old) return [reg];
@@ -31,7 +13,7 @@ function patchList(old: Registration[] | undefined, reg: Registration): Registra
   return [reg, ...old];
 }
 
-/** Update admin + search caches immediately after save (no wait for refetch). */
+/** Apply server-returned row to all list caches immediately. */
 export function upsertRegistrationInCaches(qc: QueryClient, reg: Registration): void {
   qc.setQueriesData<Registration[]>({ queryKey: ['admin-list'] }, (old) => patchList(old, reg));
   qc.setQueriesData<Registration[]>({ queryKey: ['search'] }, (old) => patchList(old, reg));
@@ -43,11 +25,25 @@ export function removeRegistrationFromCaches(qc: QueryClient, rowIndex: number):
   qc.setQueriesData<Registration[]>({ queryKey: ['search'] }, drop);
 }
 
-/** Refetch stats + lists from server (run after optimistic patch). */
-export async function refreshRegistrationCaches(qc: QueryClient): Promise<void> {
+/**
+ * Hard refresh after save: reset caches and refetch from API (cache-busted).
+ * Call after upserting the saved row so UI never flashes stale data.
+ */
+export async function hardRefreshAfterSave(
+  qc: QueryClient,
+  saved?: Registration,
+): Promise<void> {
+  if (saved) {
+    upsertRegistrationInCaches(qc, saved);
+  }
+
+  qc.removeQueries({ queryKey: ['stats'] });
+  qc.removeQueries({ queryKey: ['admin-list'] });
+  qc.removeQueries({ queryKey: ['search'] });
+
   await Promise.all([
-    qc.refetchQueries({ queryKey: ['stats'] }),
-    qc.refetchQueries({ queryKey: ['admin-list'] }),
-    qc.refetchQueries({ queryKey: ['search'] }),
+    qc.fetchQuery({ queryKey: ['stats'], queryFn: fetchStats }),
+    qc.refetchQueries({ queryKey: ['admin-list'], type: 'all' }),
+    qc.refetchQueries({ queryKey: ['search'], type: 'all' }),
   ]);
 }

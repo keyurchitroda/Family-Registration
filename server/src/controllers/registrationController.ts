@@ -170,7 +170,7 @@ export async function create(req: Request, res: Response): Promise<void> {
     members: body.members,
     notes: body.notes?.trim() || '',
   });
-  res.status(201).json({ ok: true, rowIndex: result.rowIndex });
+  res.status(201).json({ ok: true, rowIndex: result.rowIndex, registration: result.registration });
 }
 
 export async function update(req: Request, res: Response): Promise<void> {
@@ -181,7 +181,7 @@ export async function update(req: Request, res: Response): Promise<void> {
   }
   const body = req.body as BodyPayload & { time?: string };
   if (!validateBody(body, res)) return;
-  await updateRegistration(rowNumber, {
+  const registration = await updateRegistration(rowNumber, {
     fullName: body.fullName.trim(),
     mobile: body.mobile.trim(),
     address: body.address?.trim() || '',
@@ -192,7 +192,7 @@ export async function update(req: Request, res: Response): Promise<void> {
     notes: body.notes?.trim() || '',
     time: body.time,
   });
-  res.json({ ok: true });
+  res.json({ ok: true, registration });
 }
 
 export async function remove(req: Request, res: Response): Promise<void> {

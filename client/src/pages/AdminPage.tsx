@@ -29,11 +29,7 @@ import { AdminMemberTokens } from '../components/AdminMemberTokens';
 import { getTokenStats, tokenPendingPresentHint, tokenSummaryLabel } from '../utils/tokens';
 import { extraMemberSlotCount } from '../utils/presentMembers';
 import { recoverRegistration } from '../utils/recoverRegistration';
-import {
-  refreshRegistrationCaches,
-  removeRegistrationFromCaches,
-  upsertRegistrationInCaches,
-} from '../lib/registrationCache';
+import { hardRefreshAfterSave, removeRegistrationFromCaches } from '../lib/registrationCache';
 import { cn } from '../lib/utils';
 
 export function AdminPage() {
@@ -64,7 +60,7 @@ export function AdminPage() {
 
   const updateMut = useMutation({
     mutationFn: async () => {
-      if (!edit) return;
+      if (!edit) throw new Error('Nothing to save');
       const payload: RegistrationPayload & { time?: string } = {
         fullName: edit.fullName,
         mobile: edit.mobile,
@@ -76,44 +72,40 @@ export function AdminPage() {
         notes: edit.notes,
         time: edit.time,
       };
-      await updateRegistration(edit.rowIndex, payload);
+      return updateRegistration(edit.rowIndex, payload);
     },
-    onSuccess: () => {
-      if (edit) {
-        upsertRegistrationInCaches(qc, recoverRegistration(edit));
-      }
+    onSuccess: async (registration) => {
       setEdit(null);
+      await hardRefreshAfterSave(qc, recoverRegistration(registration));
       toast.success('Updated');
-      void refreshRegistrationCaches(qc);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMut = useMutation({
     mutationFn: deleteRegistration,
-    onSuccess: (_data, rowIndex) => {
+    onSuccess: async (_data, rowIndex) => {
       removeRegistrationFromCaches(qc, rowIndex);
+      await hardRefreshAfterSave(qc);
       toast.success('Row deleted from Excel');
-      void refreshRegistrationCaches(qc);
     },
     onError: (e: Error) => toast.error(e.message || 'Delete failed'),
   });
 
   const repairMut = useMutation({
     mutationFn: repairRegistration,
-    onSuccess: (fixed) => {
-      upsertRegistrationInCaches(qc, recoverRegistration(fixed));
+    onSuccess: async (fixed) => {
+      await hardRefreshAfterSave(qc, recoverRegistration(fixed));
       toast.success('Row repaired and columns fixed');
-      void refreshRegistrationCaches(qc);
     },
     onError: (e: Error) => toast.error(e.message || 'Repair failed'),
   });
 
   const repairAllMut = useMutation({
     mutationFn: repairAllCorrupt,
-    onSuccess: (r) => {
+    onSuccess: async (r) => {
+      await hardRefreshAfterSave(qc);
       toast.success(`Fixed ${r.repaired} damaged row(s)`);
-      void refreshRegistrationCaches(qc);
     },
     onError: (e: Error) => toast.error(e.message || 'Repair failed'),
   });
@@ -185,7 +177,7 @@ export function AdminPage() {
             <Button
               variant="outline"
               disabled={isFetching}
-              onClick={() => void refreshRegistrationCaches(qc)}
+              onClick={() => void hardRefreshAfterSave(qc)}
             >
               Refresh
             </Button>
@@ -401,7 +393,7 @@ export function AdminPage() {
               Cancel
             </Button>
             <Button onClick={() => updateMut.mutate()} disabled={updateMut.isPending}>
-              Save
+              {updateMut.isPending ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
         </DialogContent>
