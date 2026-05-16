@@ -4,10 +4,14 @@
   "buildCommand": "npm run build --prefix server && npm run build --prefix client",
   "outputDirectory": "client/dist",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
+    { "source": "/api/((?!health$).*)", "destination": "/api" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "functions": {
+    "api/health.ts": {
+      "memory": 256,
+      "maxDuration": 10
+    },
     "api/index.ts": {
       "memory": 1024,
       "maxDuration": 60,
