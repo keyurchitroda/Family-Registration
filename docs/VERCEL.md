@@ -1,75 +1,82 @@
 # Deploy on Vercel (live)
 
-This project deploys as **one Vercel app**: React UI + Express API + Excel stored in **Vercel Blob** (required for persistent data on serverless).
+Data **must** be stored in the cloud on Vercel (serverless has no permanent disk). Use **Vercel Blob** or **Upstash Redis** (free).
 
-## 1. Push to GitHub
+## Fix: "Vercel Blob is not configured"
 
-Create a repo and push this project (if you have not already).
+### Option A — Vercel Blob (recommended)
 
-## 2. Import on Vercel
+1. Open [vercel.com](https://vercel.com) → your **Family Registration** project  
+2. Top menu → **Storage**  
+3. **Create Database** → **Blob**  
+4. Name: `registrations` → **Create**  
+5. **Connect to Project** → select this project  
+6. Enable **Production**, **Preview**, **Development** → **Connect**  
+7. **Deployments** → latest deployment → **⋯** → **Redeploy** (required)  
+8. After deploy, open:  
+   `https://YOUR-PROJECT.vercel.app/api/health`  
 
-1. Go to [vercel.com/new](https://vercel.com/new)
-2. Import your GitHub repository
-3. **Framework preset:** Vite (or Other — `vercel.json` controls the build)
-4. Leave **Root Directory** as `.` (project root)
-5. Deploy once (it may work for the UI; add Blob before relying on registrations)
+You should see:
 
-## 3. Add Vercel Blob (required for data)
+```json
+{
+  "ok": true,
+  "storage": "excel-blob",
+  "blobConfigured": true,
+  "redisConfigured": false
+}
+```
 
-1. In the Vercel project → **Storage** → **Create Database** → **Blob**
-2. Connect it to this project — Vercel sets `BLOB_READ_WRITE_TOKEN` automatically
+If `blobConfigured` is still `false`:
 
-Without Blob, registrations on Vercel **do not persist** between requests.
+- **Settings** → **Environment Variables** → check `BLOB_READ_WRITE_TOKEN` exists  
+- If missing: Storage → your Blob store → **Connect Project** again → **Redeploy**
 
-## 4. Environment variables
+### Option B — Upstash Redis (free, no Vercel Blob)
 
-| Variable | Value | Notes |
-|----------|--------|--------|
-| `BLOB_READ_WRITE_TOKEN` | (auto from Blob) | Set by Vercel when Blob is linked |
-| `EXCEL_PATH` | `/tmp/registrations.xlsx` | Writable path on serverless |
-| `VITE_API_BASE` | *(leave empty)* | Same origin — `/api` is proxied by Vercel |
+1. [console.upstash.com](https://console.upstash.com) → **Create database** → Redis  
+2. Copy **UPSTASH_REDIS_REST_URL** and **UPSTASH_REDIS_REST_TOKEN**  
+3. Vercel → project → **Settings** → **Environment Variables** → add both (Production + Preview)  
+4. **Redeploy**  
+5. `/api/health` should show `"storage": "excel-redis", "redisConfigured": true`
 
-Redeploy after adding Blob.
+---
 
-## 5. Your live URL
+## First-time deploy
 
-After deploy: `https://your-project.vercel.app`
+1. Push code to GitHub  
+2. [vercel.com/new](https://vercel.com/new) → import repo  
+3. Add **Blob** or **Upstash** (above)  
+4. Set **EXCEL_PATH** = `/tmp/registrations.xlsx` (optional; default on Vercel)  
+5. Leave **VITE_API_BASE** empty  
+6. Redeploy  
 
-- App: `/` (Register, Dashboard, Admin)
-- API health: `/api/health` → `{ "ok": true, "storage": "excel-blob", "blobConfigured": true }`
+## Environment variables
 
-If `blobConfigured` is **false**, registration saves **will not work** on Vercel (connect Blob and redeploy).
+| Variable | Required | Notes |
+|----------|----------|--------|
+| `BLOB_READ_WRITE_TOKEN` | Blob option | Auto-added when Blob is linked |
+| `UPSTASH_REDIS_REST_URL` | Redis option | From Upstash console |
+| `UPSTASH_REDIS_REST_TOKEN` | Redis option | From Upstash console |
+| `EXCEL_PATH` | Optional | `/tmp/registrations.xlsx` on Vercel |
 
-If `/api/health` returns **404** or HTML, push the latest code (uses `api/[[...slug]].ts` so all `/api/*` routes work).
+## Upload existing Excel (optional)
 
-## 6. Upload existing Excel (optional)
-
-If you already have `server/data/registrations.xlsx` locally:
-
-1. Open **Vercel** → **Storage** → your Blob store
-2. Upload `registrations.xlsx` with pathname **`registrations.xlsx`** (same as `BLOB_EXCEL_PATHNAME` default)
-
-Or start fresh on production — the file is created on first registration.
+**Blob:** Storage → Blob store → Upload `registrations.xlsx`  
+**Redis:** Not needed — file is created on first save  
 
 ## Local vs Vercel
 
-| | Local `npm run dev` | Vercel |
-|--|---------------------|--------|
-| Excel file | `server/data/registrations.xlsx` | Blob + `/tmp` cache |
-| API | `localhost:4000` | `/api/*` serverless |
-
-## CLI deploy (optional)
-
-```bash
-npm i -g vercel
-vercel login
-vercel --prod
-```
-
-Link Blob in the dashboard before using registration in production.
+| | Local | Vercel |
+|--|-------|--------|
+| Storage | `server/data/registrations.xlsx` | Blob or Redis |
+| API | `:4000` | `/api/*` |
 
 ## Troubleshooting
 
-- **500 on save** — Check Blob is connected and `BLOB_READ_WRITE_TOKEN` exists; redeploy.
-- **Empty admin list after deploy** — Upload existing xlsx to Blob or register again.
-- **CORS errors** — Leave `VITE_API_BASE` empty in production so the client calls the same host.
+| Problem | Fix |
+|---------|-----|
+| Blob error on save | Link Blob or add Upstash → **Redeploy** |
+| `blobConfigured: false` | Storage → Connect project → Redeploy |
+| `/api/health` 404 | Push latest code (`api/[[...slug]].ts`) |
+| Saves work once then reset | Storage not connected — use Blob or Redis |

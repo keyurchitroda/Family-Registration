@@ -10,7 +10,11 @@ import {
 import type { FamilyMember } from '../types';
 import type { RegistrationFormValues } from '../utils/validation';
 import { emptyMember, MEMBER_RELATIONS } from '../utils/memberRelations';
-import { extraMemberSlotCount } from '../utils/presentMembers';
+import {
+  accountedPresentCount,
+  extraMemberSlotCount,
+  newMemberSlotCount,
+} from '../utils/presentMembers';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { cn } from '../lib/utils';
@@ -38,7 +42,12 @@ export function MembersTable({
   isEditing = false,
 }: Props) {
   const { fields, replace } = useFieldArray({ control, name: 'members' });
-  const slotCount = extraMemberSlotCount(presentToday);
+  const namedSaved = savedOnFile.filter((m) => m.name.trim());
+  const savedCount = namedSaved.length;
+  const accounted = accountedPresentCount(savedOnFile);
+  const slotCount = isEditing
+    ? newMemberSlotCount(presentToday, savedOnFile)
+    : extraMemberSlotCount(presentToday);
 
   useEffect(() => {
     const target = slotCount;
@@ -51,6 +60,9 @@ export function MembersTable({
     replace(next);
   }, [slotCount, getValues, replace]);
 
+  const memberNumber = (rowIndex: number) =>
+    2 + savedCount + rowIndex;
+
   return (
     <div className="space-y-3">
       <div>
@@ -58,18 +70,23 @@ export function MembersTable({
         <p className="text-sm text-muted-foreground">
           {presentToday <= 1
             ? '1 person present ? use Full name above only.'
-            : `${presentToday} present ? fill ${slotCount} more member${slotCount === 1 ? '' : 's'} below (head is above).`}
-          {isEditing && ' Already saved names are shown above; only fill empty rows for new arrivals.'}
+            : isEditing
+              ? `${presentToday} present ? ${accounted} counted (head + ${savedCount} on file)${
+                  slotCount > 0
+                    ? ` ? fill ${slotCount} more below`
+                    : ' ? all slots filled'
+                }.`
+              : `${presentToday} present ? fill ${slotCount} member${slotCount === 1 ? '' : 's'} below (head is above).`}
         </p>
       </div>
 
-      {savedOnFile.length > 0 && (
+      {namedSaved.length > 0 && (
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-primary">
             Already on file (no need to re-enter)
           </p>
           <div className="flex flex-wrap gap-2">
-            {savedOnFile.map((m, i) => (
+            {namedSaved.map((m, i) => (
               <span
                 key={`${m.name}-${i}`}
                 className="rounded-full bg-card px-3 py-1 text-sm font-medium shadow-sm"
@@ -84,7 +101,9 @@ export function MembersTable({
 
       {slotCount === 0 && (
         <p className="rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-          No extra rows ? increase <strong>Present today</strong> to add more member fields.
+          {isEditing && accounted >= presentToday
+            ? `${accounted} people counted for ${presentToday} present. Increase Present today to add more.`
+            : 'No extra rows ? increase Present today to add member fields.'}
         </p>
       )}
 
@@ -95,7 +114,7 @@ export function MembersTable({
             className="rounded-lg border bg-muted/30 p-3 space-y-3 sm:space-y-0 sm:grid sm:gap-3 sm:grid-cols-[minmax(0,1fr)_72px_minmax(110px,1fr)_96px] sm:items-start"
           >
             <p className="text-xs font-semibold text-primary sm:col-span-4">
-              Present member {index + 2} of {presentToday}
+              {isEditing ? 'New arrival' : 'Present member'} {memberNumber(index)} of {presentToday}
             </p>
             <div>
               <Label className="mb-1 block text-xs font-semibold text-muted-foreground sm:sr-only">

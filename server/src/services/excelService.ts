@@ -2,13 +2,13 @@ import ExcelJS from 'exceljs';
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config.js';
-import { pullExcelFromBlob, pushExcelToBlob } from '../storage/blobSync.js';
+import { pullExcelFromCloud, pushExcelToCloud } from '../storage/cloudSync.js';
 import type { FamilyMember, Registration } from '../types.js';
 import { COL, HEADER } from '../types.js';
 
 async function persistWorkbook(wb: ExcelJS.Workbook): Promise<void> {
   await wb.xlsx.writeFile(config.excelPath);
-  await pushExcelToBlob();
+  await pushExcelToCloud();
 }
 
 let writeLock: Promise<void> = Promise.resolve();
@@ -202,7 +202,7 @@ function parseAnyRow(row: ExcelJS.Row, rowIndex: number): Registration | null {
 
 async function loadWorkbook(): Promise<ExcelJS.Workbook> {
   await ensureDir();
-  await pullExcelFromBlob();
+  await pullExcelFromCloud();
   const wb = new ExcelJS.Workbook();
   try {
     await wb.xlsx.readFile(config.excelPath);

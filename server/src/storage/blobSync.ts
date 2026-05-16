@@ -5,27 +5,39 @@ import { config } from '../config.js';
 
 const BLOB_PATHNAME = process.env.BLOB_EXCEL_PATHNAME || 'registrations.xlsx';
 
-function blobToken(): string | undefined {
-  return process.env.BLOB_READ_WRITE_TOKEN?.trim() || undefined;
+/** Vercel may inject BLOB_READ_WRITE_TOKEN or a store-prefixed variant */
+export function getBlobToken(): string | undefined {
+  const direct = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+  if (direct) return direct;
+
+  for (const [key, value] of Object.entries(process.env)) {
+    if (key.endsWith('_BLOB_READ_WRITE_TOKEN') || key === 'BLOB_READ_WRITE_TOKEN') {
+      const v = value?.trim();
+      if (v) return v;
+    }
+  }
+  return undefined;
 }
 
 export function blobEnabled(): boolean {
-  return Boolean(blobToken());
+  return Boolean(getBlobToken());
 }
 
 async function findBlobUrl(): Promise<string | null> {
-  const token = blobToken();
+  const token = getBlobToken();
   if (!token) return null;
 
+  const opts = { token };
+
   try {
-    const meta = await head(BLOB_PATHNAME, { token });
+    const meta = await head(BLOB_PATHNAME, opts);
     return meta.url;
   } catch {
     // fall through to list
   }
 
   try {
-    const { blobs } = await list({ prefix: 'registrations', token });
+    const { blobs } = await list({ prefix: 'registrations', ...opts });
     const exact = blobs.find((b) => b.pathname === BLOB_PATHNAME);
     if (exact) return exact.url;
     const xlsx = blobs.filter((b) => b.pathname.endsWith('.xlsx'));
@@ -57,14 +69,9 @@ export async function pullExcelFromBlob(): Promise<void> {
 
 /** Upload Excel to Vercel Blob after each save. */
 export async function pushExcelToBlob(): Promise<void> {
-  const token = blobToken();
+  const token = getBlobToken();
   if (!token) {
-    if (process.env.VERCEL) {
-      throw new Error(
-        'Vercel Blob is not configured. Link a Blob store in the Vercel project (Storage → Blob) and redeploy.',
-      );
-    }
-    return;
+    throw new Error('BLOB_TOKEN_MISSING');
   }
 
   try {
@@ -78,12 +85,7 @@ export async function pushExcelToBlob(): Promise<void> {
   } catch (err) {
     console.error('Failed to upload Excel to Vercel Blob:', err);
     throw new Error(
-      err instanceof Error ? err.message : 'Failed to save registrations to cloud storage',
+      err instanceof Error ? err.message : 'Failed to save registrations to Vercel Blob',
     );
   }
-}
-
-export function storageMode(): 'excel-local' | 'excel-blob' | 'excel-vercel-no-blob' {
-  if (!process.env.VERCEL) return blobEnabled() ? 'excel-blob' : 'excel-local';
-  return blobEnabled() ? 'excel-blob' : 'excel-vercel-no-blob';
 }
