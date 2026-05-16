@@ -2,13 +2,25 @@ import ExcelJS from 'exceljs';
 import fs from 'fs/promises';
 import path from 'path';
 import { config } from '../config.js';
-import { pullExcelFromCloud, pushExcelToCloud } from '../storage/cloudSync.js';
+import {
+  cloudStorageEnabled,
+  pullExcelFromCloud,
+  pushExcelToCloud,
+} from '../storage/cloudSync.js';
 import type { FamilyMember, Registration } from '../types.js';
 import { COL, HEADER } from '../types.js';
 
-async function persistWorkbook(wb: ExcelJS.Workbook): Promise<void> {
+/** Save to disk only (reads / migrations — must not require Vercel Blob). */
+async function persistWorkbookLocal(wb: ExcelJS.Workbook): Promise<void> {
   await wb.xlsx.writeFile(config.excelPath);
-  await pushExcelToCloud();
+}
+
+/** Save after user action — sync to cloud when configured. */
+async function persistWorkbook(wb: ExcelJS.Workbook): Promise<void> {
+  await persistWorkbookLocal(wb);
+  if (cloudStorageEnabled() || !process.env.VERCEL) {
+    await pushExcelToCloud();
+  }
 }
 
 let writeLock: Promise<void> = Promise.resolve();
@@ -210,22 +222,22 @@ async function loadWorkbook(): Promise<ExcelJS.Workbook> {
     const ws = wb.addWorksheet(config.sheetName);
     ws.addRow([...HEADER]);
     ws.getRow(1).font = { bold: true };
-    await persistWorkbook(wb);
+    await persistWorkbookLocal(wb);
   }
   const ws = wb.getWorksheet(config.sheetName);
   if (!ws) {
     const created = wb.addWorksheet(config.sheetName);
     created.addRow([...HEADER]);
     created.getRow(1).font = { bold: true };
-    await persistWorkbook(wb);
+    await persistWorkbookLocal(wb);
   } else {
     if (ws.rowCount === 0 || cellText(ws.getRow(1).getCell(1)) !== HEADER[0]) {
       ws.spliceRows(1, 0, [...HEADER]);
       ws.getRow(1).font = { bold: true };
-      await persistWorkbook(wb);
+      await persistWorkbookLocal(wb);
     } else if (isLegacySheet(ws)) {
       migrateSheetToTokenColumn(ws);
-      await persistWorkbook(wb);
+      await persistWorkbookLocal(wb);
     }
   }
   return wb;

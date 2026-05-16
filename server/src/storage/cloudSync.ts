@@ -54,7 +54,9 @@ export async function pushExcelToCloud(): Promise<void> {
     return;
   }
   if (process.env.VERCEL) {
-    throw new Error(vercelStorageSetupMessage());
+    const err = new Error(vercelStorageSetupMessage());
+    err.name = 'StorageNotConfigured';
+    throw err;
   }
 }
 
