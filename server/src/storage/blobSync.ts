@@ -5,12 +5,6 @@ import { config } from '../config.js';
 
 const BLOB_PATHNAME = process.env.BLOB_EXCEL_PATHNAME || 'registrations.xlsx';
 
-function blobAccess(): 'public' | 'private' {
-  const v = process.env.BLOB_ACCESS?.trim().toLowerCase();
-  if (v === 'public') return 'public';
-  return 'private';
-}
-
 /** Vercel may inject BLOB_READ_WRITE_TOKEN or a store-prefixed variant */
 export function getBlobToken(): string | undefined {
   const direct = process.env.BLOB_READ_WRITE_TOKEN?.trim();
@@ -76,11 +70,12 @@ export async function pushExcelToBlob(): Promise<void> {
 
   try {
     const data = await fs.readFile(config.excelPath);
+    // Store "Public" in the dashboard does not set this — each put() must pass access.
     await put(BLOB_PATHNAME, data, {
-      access: blobAccess() as 'public',
+      access: 'public',
+      allowOverwrite: true,
       addRandomSuffix: false,
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      token,
     });
   } catch (err) {
     console.error('Failed to upload Excel to Vercel Blob:', err);
