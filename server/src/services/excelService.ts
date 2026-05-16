@@ -113,8 +113,52 @@ function looksLikeIsoTime(s: string): boolean {
   return /^\d{4}-\d{2}-\d{2}/.test(s.trim());
 }
 
-function isLegacySheet(ws: ExcelJS.Worksheet): boolean {
-  return cellText(ws.getRow(1).getCell(COL.members)).trim() === 'Members';
+/** Old 8-column sheet: col 6 = Members, col 7 = Notes (no Token Given). */
+function needsLegacyTokenMigration(ws: ExcelJS.Worksheet): boolean {
+  const h6 = cellText(ws.getRow(1).getCell(6)).trim();
+  const h7 = cellText(ws.getRow(1).getCell(7)).trim();
+  return h6 === 'Members' && h7 === 'Notes';
+}
+
+function looksLikeMembersJson(raw: string): boolean {
+  const t = raw.trim();
+  return t.startsWith('[') && t.includes('"name"');
+}
+
+/** Fix rows damaged by wrong migration or pre–Token-Given writes (members JSON in Notes). */
+function recoverMembersAndNotes(
+  membersRaw: string,
+  notesRaw: string,
+): { members: FamilyMember[]; notes: string } {
+  let members = parseMembers(membersRaw);
+  let notes = notesRaw;
+
+  if (members.length === 0 && looksLikeMembersJson(notes)) {
+    const fromNotes = parseMembers(notes);
+    if (fromNotes.length > 0) {
+      members = fromNotes;
+      notes = '';
+    }
+  }
+
+  const mTrim = membersRaw.trim().toLowerCase();
+  if (
+    members.length === 0 &&
+    (mTrim === 'yes' || mTrim === 'no') &&
+    looksLikeMembersJson(notes)
+  ) {
+    members = parseMembers(notes);
+    notes = '';
+  }
+
+  return { members, notes };
+}
+
+function rowNeedsColumnRepair(row: ExcelJS.Row): boolean {
+  const notesRaw = cellText(row.getCell(COL.notes));
+  if (looksLikeMembersJson(notesRaw)) return true;
+  const membersRaw = cellText(row.getCell(COL.members)).trim().toLowerCase();
+  return (membersRaw === 'yes' || membersRaw === 'no') && looksLikeMembersJson(notesRaw);
 }
 
 /** Old 8-column sheet: Members was column 6 */
@@ -145,6 +189,9 @@ function migrateSheetToTokenColumn(ws: ExcelJS.Worksheet): void {
 function rowToRegistration(row: ExcelJS.Row, rowIndex: number): Registration | null {
   const fullName = cellText(row.getCell(COL.fullName)).trim();
   if (!fullName) return null;
+  const membersRaw = cellText(row.getCell(COL.members));
+  const notesRaw = cellText(row.getCell(COL.notes));
+  const { members, notes } = recoverMembersAndNotes(membersRaw, notesRaw);
   return {
     rowIndex,
     fullName,
@@ -153,8 +200,8 @@ function rowToRegistration(row: ExcelJS.Row, rowIndex: number): Registration | n
     totalFamily: Number(row.getCell(COL.totalFamily).value) || 0,
     presentToday: Number(row.getCell(COL.presentToday).value) || 0,
     tokenGiven: parseYesNo(row.getCell(COL.tokenGiven)),
-    members: parseMembers(cellText(row.getCell(COL.members))),
-    notes: cellText(row.getCell(COL.notes)),
+    members,
+    notes,
     time: cellText(row.getCell(COL.time)),
   };
 }
@@ -235,12 +282,48 @@ async function loadWorkbook(): Promise<ExcelJS.Workbook> {
       ws.spliceRows(1, 0, [...HEADER]);
       ws.getRow(1).font = { bold: true };
       await persistWorkbookLocal(wb);
-    } else if (isLegacySheet(ws)) {
+    } else if (needsLegacyTokenMigration(ws)) {
       migrateSheetToTokenColumn(ws);
       await persistWorkbookLocal(wb);
     }
+    const repaired = await repairMisalignedDataRows(ws);
+    if (repaired > 0) {
+      await persistWorkbookLocal(wb);
+      if (cloudStorageEnabled()) {
+        await pushExcelToCloud();
+      }
+    }
   }
   return wb;
+}
+
+/** Rewrite rows where member JSON landed in Notes (common on Vercel after bad migration). */
+async function repairMisalignedDataRows(ws: ExcelJS.Worksheet): Promise<number> {
+  let repaired = 0;
+  for (let i = 2; i <= ws.rowCount; i++) {
+    const row = ws.getRow(i);
+    if (!rowNeedsColumnRepair(row)) continue;
+    const reg = rowToRegistration(row, i);
+    if (!reg) continue;
+    const time =
+      reg.time && looksLikeIsoTime(reg.time) ? reg.time : new Date().toISOString();
+    writeDataRow(
+      row,
+      {
+        fullName: reg.fullName,
+        mobile: reg.mobile,
+        address: reg.address,
+        totalFamily: reg.totalFamily || 1,
+        presentToday: reg.presentToday,
+        tokenGiven: reg.tokenGiven,
+        members: reg.members,
+        notes: reg.notes,
+      },
+      time,
+    );
+    repaired++;
+  }
+  return repaired;
 }
 
 function getSheet(wb: ExcelJS.Workbook): ExcelJS.Worksheet {
@@ -332,7 +415,7 @@ export async function repairAllCorruptRows(): Promise<{ repaired: number; delete
   return withLock(async () => {
     const wb = await loadWorkbook();
     const ws = getSheet(wb);
-    let repaired = 0;
+    let repaired = await repairMisalignedDataRows(ws);
     for (let i = 2; i <= ws.rowCount; i++) {
       const row = ws.getRow(i);
       if (rowToRegistration(row, i)) continue;

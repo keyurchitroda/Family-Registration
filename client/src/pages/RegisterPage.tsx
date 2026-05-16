@@ -22,6 +22,7 @@ import {
 } from '../utils/validation';
 import { emptyMember } from '../utils/memberRelations';
 import { newMemberSlotCount } from '../utils/presentMembers';
+import { recoverRegistration } from '../utils/recoverRegistration';
 import { playSuccessSound } from '../utils/sound';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -108,11 +109,12 @@ export function RegisterPage() {
 
   const loadFamily = useCallback(
     (r: Registration, message?: string) => {
-      setEditingRow(r.rowIndex);
-      setSavedTime(r.time);
-      setSavedOnFile(r.members);
-      setSavedTokenGiven(r.tokenGiven);
-      reset(mapToForm(r, true));
+      const reg = recoverRegistration(r);
+      setEditingRow(reg.rowIndex);
+      setSavedTime(reg.time);
+      setSavedOnFile(reg.members);
+      setSavedTokenGiven(reg.tokenGiven);
+      reset(mapToForm(reg, true));
       toast.success(message ?? 'Family loaded. Add NEW present members only, then Update.');
     },
     [reset],

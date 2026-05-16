@@ -28,6 +28,7 @@ import {
 import { AdminMemberTokens } from '../components/AdminMemberTokens';
 import { getTokenStats, tokenPendingPresentHint, tokenSummaryLabel } from '../utils/tokens';
 import { extraMemberSlotCount } from '../utils/presentMembers';
+import { recoverRegistration } from '../utils/recoverRegistration';
 import { cn } from '../lib/utils';
 
 export function AdminPage() {
@@ -300,12 +301,13 @@ export function AdminPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => {
-                            const slots = extraMemberSlotCount(r.presentToday);
-                            const members = r.members.slice(0, slots).map((m) => ({ ...m }));
+                            const reg = recoverRegistration(r);
+                            const slots = extraMemberSlotCount(reg.presentToday);
+                            const members = reg.members.slice(0, slots).map((m) => ({ ...m }));
                             while (members.length < slots) {
                               members.push({ name: '', relation: '', tokenGiven: false });
                             }
-                            setEdit({ ...r, members });
+                            setEdit({ ...reg, members });
                           }}
                         >
                           <Pencil className="h-4 w-4" />
