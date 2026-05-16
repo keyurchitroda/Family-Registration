@@ -70,20 +70,19 @@ export async function pullExcelFromBlob(): Promise<void> {
 /** Upload Excel to Vercel Blob after each save. */
 export async function pushExcelToBlob(): Promise<void> {
   const token = getBlobToken();
-  if (!token) {
-    throw new Error('BLOB_TOKEN_MISSING');
-  }
+  if (!token && !process.env.VERCEL) return;
 
   try {
     const data = await fs.readFile(config.excelPath);
     await put(BLOB_PATHNAME, data, {
       access: 'public',
-      token,
       addRandomSuffix: false,
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      ...(token ? { token } : {}),
     });
   } catch (err) {
     console.error('Failed to upload Excel to Vercel Blob:', err);
+    if (!token) throw new Error('BLOB_TOKEN_MISSING');
     throw new Error(
       err instanceof Error ? err.message : 'Failed to save registrations to Vercel Blob',
     );

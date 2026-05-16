@@ -17,6 +17,9 @@ api.interceptors.response.use(
     let msg = err.message || 'Request failed';
     if (data && typeof data === 'object' && 'error' in data) {
       msg = String((data as { error: unknown }).error);
+      if (msg.includes('FREE setup')) {
+        msg = msg.split('\n')[0] ?? msg;
+      }
     } else if (typeof data === 'string' && data.includes('<!DOCTYPE')) {
       msg = 'API not found — redeploy or check Vercel API routes';
     }
