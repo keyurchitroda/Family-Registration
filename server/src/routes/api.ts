@@ -1,11 +1,20 @@
 import { Router } from 'express';
 import * as registration from '../controllers/registrationController.js';
-import { storageMode } from '../storage/blobSync.js';
+import { blobEnabled, storageMode } from '../storage/blobSync.js';
 
 const router = Router();
 
 router.get('/health', (_req, res) => {
-  res.json({ ok: true, storage: storageMode() });
+  const storage = storageMode();
+  res.json({
+    ok: true,
+    storage,
+    blobConfigured: blobEnabled(),
+    warning:
+      storage === 'excel-vercel-no-blob'
+        ? 'Connect Vercel Blob or saves will not persist between requests'
+        : undefined,
+  });
 });
 
 router.get('/stats', (req, res, next) => {

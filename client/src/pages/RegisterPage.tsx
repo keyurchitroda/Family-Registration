@@ -21,6 +21,7 @@ import {
   membersForSave,
 } from '../utils/validation';
 import { emptyMember } from '../utils/memberRelations';
+import { extraMemberSlotCount } from '../utils/presentMembers';
 import { playSuccessSound } from '../utils/sound';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -54,8 +55,8 @@ function mapToForm(r: Registration, newMemberRowsOnly: boolean): RegistrationFor
     totalFamily: r.totalFamily,
     presentToday: r.presentToday,
     members: newMemberRowsOnly
-      ? [{ ...emptyMember }]
-      : r.members.map((m) => ({
+      ? Array.from({ length: extraMemberSlotCount(r.presentToday) }, () => ({ ...emptyMember }))
+      : r.members.slice(0, extraMemberSlotCount(r.presentToday)).map((m) => ({
           name: m.name,
           age: m.age != null ? String(m.age) : '',
           relation: m.relation || '',
@@ -94,8 +95,9 @@ export function RegisterPage() {
     defaultValues: defaults,
   });
 
-  const { register, control, handleSubmit, reset, formState, setFocus, watch } = form;
+  const { register, control, handleSubmit, reset, formState, setFocus, watch, getValues } = form;
   const mobileWatch = watch('mobile');
+  const presentTodayWatch = watch('presentToday');
 
   useEffect(() => {
     setFocus('fullName');
@@ -300,6 +302,8 @@ export function RegisterPage() {
               control={control}
               register={register}
               errors={formState.errors}
+              presentToday={Number(presentTodayWatch) || 0}
+              getValues={getValues}
               savedOnFile={savedOnFile}
               isEditing={Boolean(editingRow)}
             />

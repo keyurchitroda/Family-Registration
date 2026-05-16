@@ -1,15 +1,16 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { useEffect } from 'react';
 import {
   Controller,
   useFieldArray,
   type Control,
   type FieldErrors,
+  type UseFormGetValues,
   type UseFormRegister,
 } from 'react-hook-form';
 import type { FamilyMember } from '../types';
 import type { RegistrationFormValues } from '../utils/validation';
 import { emptyMember, MEMBER_RELATIONS } from '../utils/memberRelations';
-import { Button } from './ui/button';
+import { extraMemberSlotCount } from '../utils/presentMembers';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { cn } from '../lib/utils';
@@ -21,7 +22,8 @@ type Props = {
   control: Control<RegistrationFormValues>;
   register: UseFormRegister<RegistrationFormValues>;
   errors: FieldErrors<RegistrationFormValues>;
-  /** Already saved on file (when editing existing family) */
+  presentToday: number;
+  getValues: UseFormGetValues<RegistrationFormValues>;
   savedOnFile?: FamilyMember[];
   isEditing?: boolean;
 };
@@ -30,31 +32,35 @@ export function MembersTable({
   control,
   register,
   errors,
+  presentToday,
+  getValues,
   savedOnFile = [],
   isEditing = false,
 }: Props) {
-  const { fields, append, remove } = useFieldArray({ control, name: 'members' });
+  const { fields, replace } = useFieldArray({ control, name: 'members' });
+  const slotCount = extraMemberSlotCount(presentToday);
+
+  useEffect(() => {
+    const target = slotCount;
+    const current = getValues('members') ?? [];
+    if (current.length === target) return;
+
+    const next = [...current];
+    while (next.length < target) next.push({ ...emptyMember });
+    while (next.length > target) next.pop();
+    replace(next);
+  }, [slotCount, getValues, replace]);
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="text-lg font-bold">Present family members</h3>
-          <p className="text-sm text-muted-foreground">
-            {isEditing
-              ? 'Already saved names are listed below. Use Add only for NEW people who came today.'
-              : 'Optional. Single person? Use main form only. Add others who came today.'}
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          className="shrink-0"
-          onClick={() => append({ ...emptyMember })}
-        >
-          <Plus className="h-4 w-4" /> Add new
-        </Button>
+      <div>
+        <h3 className="text-lg font-bold">Present family members</h3>
+        <p className="text-sm text-muted-foreground">
+          {presentToday <= 1
+            ? '1 person present ? use Full name above only.'
+            : `${presentToday} present ? fill ${slotCount} more member${slotCount === 1 ? '' : 's'} below (head is above).`}
+          {isEditing && ' Already saved names are shown above; only fill empty rows for new arrivals.'}
+        </p>
       </div>
 
       {savedOnFile.length > 0 && (
@@ -76,15 +82,9 @@ export function MembersTable({
         </div>
       )}
 
-      {fields.length === 0 && !isEditing && (
+      {slotCount === 0 && (
         <p className="rounded-lg border border-dashed bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-          No extra members. The person in Full name above is the attendee.
-        </p>
-      )}
-
-      {fields.length === 0 && isEditing && (
-        <p className="rounded-lg border border-dashed px-4 py-4 text-center text-sm text-muted-foreground">
-          Tap <strong>Add new</strong> to register another person who came today.
+          No extra rows ? increase <strong>Present today</strong> to add more member fields.
         </p>
       )}
 
@@ -92,28 +92,19 @@ export function MembersTable({
         {fields.map((field, index) => (
           <div
             key={field.id}
-            className="rounded-lg border bg-muted/30 p-3 space-y-3 sm:space-y-0 sm:grid sm:gap-3 sm:grid-cols-[minmax(0,1fr)_72px_minmax(110px,1fr)_96px_44px] sm:items-start"
+            className="rounded-lg border bg-muted/30 p-3 space-y-3 sm:space-y-0 sm:grid sm:gap-3 sm:grid-cols-[minmax(0,1fr)_72px_minmax(110px,1fr)_96px] sm:items-start"
           >
+            <p className="text-xs font-semibold text-primary sm:col-span-4">
+              Present member {index + 2} of {presentToday}
+            </p>
             <div>
               <Label className="mb-1 block text-xs font-semibold text-muted-foreground sm:sr-only">
                 Name
               </Label>
               <Input
-                placeholder="New member name"
+                placeholder="Member name"
                 {...register(`members.${index}.name`)}
                 className={cn(errors.members?.[index]?.name && 'border-red-500')}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    append({ ...emptyMember });
-                    const ni = fields.length;
-                    setTimeout(() => {
-                      document
-                        .querySelector<HTMLInputElement>(`input[name="members.${ni}.name"]`)
-                        ?.focus();
-                    }, 0);
-                  }
-                }}
               />
             </div>
             <div>
@@ -158,16 +149,6 @@ export function MembersTable({
                 )}
               />
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="text-red-600"
-              onClick={() => remove(index)}
-              aria-label="Remove member"
-            >
-              <Trash2 className="h-5 w-5" />
-            </Button>
           </div>
         ))}
       </div>

@@ -10,6 +10,20 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+api.interceptors.response.use(
+  (res) => res,
+  (err: { response?: { data?: unknown }; message?: string }) => {
+    const data = err.response?.data;
+    let msg = err.message || 'Request failed';
+    if (data && typeof data === 'object' && 'error' in data) {
+      msg = String((data as { error: unknown }).error);
+    } else if (typeof data === 'string' && data.includes('<!DOCTYPE')) {
+      msg = 'API not found — redeploy or check Vercel API routes';
+    }
+    return Promise.reject(new Error(msg));
+  },
+);
+
 export type RegistrationPayload = {
   fullName: string;
   mobile: string;

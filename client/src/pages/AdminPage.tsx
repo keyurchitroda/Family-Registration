@@ -27,6 +27,7 @@ import {
 } from '../components/ui/dialog';
 import { AdminMemberTokens } from '../components/AdminMemberTokens';
 import { getTokenStats, tokenPendingPresentHint, tokenSummaryLabel } from '../utils/tokens';
+import { extraMemberSlotCount } from '../utils/presentMembers';
 import { cn } from '../lib/utils';
 
 export function AdminPage() {
@@ -64,7 +65,7 @@ export function AdminPage() {
         totalFamily: edit.totalFamily,
         presentToday: edit.presentToday,
         tokenGiven: edit.tokenGiven,
-        members: edit.members.filter((m) => m.name.trim()),
+        members: edit.members,
         notes: edit.notes,
         time: edit.time,
       };
@@ -299,9 +300,9 @@ export function AdminPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => {
-                            const members = r.members.map((m) => ({ ...m }));
-                            const slots = Math.max(0, r.totalFamily - 1 - members.length);
-                            for (let i = 0; i < slots; i++) {
+                            const slots = extraMemberSlotCount(r.presentToday);
+                            const members = r.members.slice(0, slots).map((m) => ({ ...m }));
+                            while (members.length < slots) {
                               members.push({ name: '', relation: '', tokenGiven: false });
                             }
                             setEdit({ ...r, members });

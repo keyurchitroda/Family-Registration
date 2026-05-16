@@ -1,10 +1,10 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { useEffect } from 'react';
 import type { FamilyMember } from '../types';
 import { Label } from './ui/label';
 import { Input } from './ui/input';
-import { Button } from './ui/button';
 import { cn } from '../lib/utils';
 import { getTokenStatsFromFields } from '../utils/tokens';
+import { extraMemberSlotCount } from '../utils/presentMembers';
 
 type Props = {
   headName: string;
@@ -29,8 +29,21 @@ export function AdminMemberTokens({
   totalFamily,
   presentToday,
 }: Props) {
-  const { given, totalFamily: total, pendingAmongPresent, notListed: missing } =
-    getTokenStatsFromFields(headTokenGiven, members, totalFamily, presentToday);
+  const slotCount = extraMemberSlotCount(presentToday);
+  const { given, pendingAmongPresent } = getTokenStatsFromFields(
+    headTokenGiven,
+    members,
+    totalFamily,
+    presentToday,
+  );
+
+  useEffect(() => {
+    const target = slotCount;
+    if (members.length === target) return;
+    const next = [...members.slice(0, target)];
+    while (next.length < target) next.push(emptyMember());
+    onMembersChange(next);
+  }, [presentToday, slotCount, members.length, onMembersChange]);
 
   const updateMember = (index: number, patch: Partial<FamilyMember>) => {
     onMembersChange(members.map((m, i) => (i === index ? { ...m, ...patch } : m)));
@@ -40,24 +53,15 @@ export function AdminMemberTokens({
     updateMember(index, { tokenGiven: !members[index]?.tokenGiven });
   };
 
-  const removeMember = (index: number) => {
-    onMembersChange(members.filter((_, i) => i !== index));
-  };
-
-  const addMember = () => {
-    onMembersChange([...members, emptyMember()]);
-  };
-
   return (
     <div className="space-y-4 rounded-lg border border-primary/20 bg-muted/30 p-4">
       <div>
         <p className="text-sm font-bold text-primary">Physical token tracking</p>
         <p className="text-xs text-muted-foreground">
-          Mark each person when their dinner token is handed out — family head first, then each
-          member one by one.
+          One row per person present today — family head first, then each member.
         </p>
         <p className="mt-2 text-xs font-medium">
-          Present {presentToday}/{totalFamily} · Tokens {given}/{total}
+          Present {presentToday}/{totalFamily} · Tokens {given}/{presentToday}
         </p>
         {presentToday > 0 && (
           <p
@@ -76,7 +80,7 @@ export function AdminMemberTokens({
       </div>
 
       <div className="space-y-2">
-        <Label>Family list — head &amp; members</Label>
+        <Label>Family list — head &amp; members ({presentToday} present)</Label>
 
         <label
           className={cn(
@@ -94,7 +98,7 @@ export function AdminMemberTokens({
           <div className="min-w-0 flex-1">
             <span className="font-semibold">{headName}</span>
             <span className="ml-2 rounded bg-primary/15 px-1.5 py-0.5 text-xs text-primary">
-              Family head
+              Family head · 1 of {presentToday}
             </span>
           </div>
           <span
@@ -106,6 +110,10 @@ export function AdminMemberTokens({
             {headTokenGiven ? 'Given' : 'Pending'}
           </span>
         </label>
+
+        {slotCount === 0 && presentToday <= 1 && (
+          <p className="text-sm text-muted-foreground">Only the family head is present today.</p>
+        )}
 
         {members.length > 0 && (
           <ul className="ml-3 space-y-2 border-l-2 border-muted-foreground/25 pl-3 sm:ml-5 sm:pl-4">
@@ -123,10 +131,10 @@ export function AdminMemberTokens({
                       className="h-5 w-5 shrink-0 rounded accent-secondary"
                       checked={Boolean(m.tokenGiven)}
                       onChange={() => toggleMember(i)}
-                      disabled={!m.name.trim()}
-                      title={!m.name.trim() ? 'Enter name first' : undefined}
                     />
-                    <span className="text-xs text-muted-foreground">Member {i + 1}</span>
+                    <span className="text-xs text-muted-foreground">
+                      Present member {i + 2} of {presentToday}
+                    </span>
                     <span
                       className={cn(
                         'ml-auto text-xs font-bold uppercase',
@@ -149,32 +157,12 @@ export function AdminMemberTokens({
                       onChange={(e) => updateMember(i, { relation: e.target.value })}
                       placeholder="Relation"
                     />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="shrink-0 text-red-600"
-                      onClick={() => removeMember(i)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
               </li>
             ))}
           </ul>
         )}
-
-        {missing > 0 && (
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            {missing} more on file (total family {totalFamily}) — use Add family member for each
-            person.
-          </p>
-        )}
-
-        <Button type="button" variant="outline" size="sm" onClick={addMember}>
-          <Plus className="h-4 w-4" /> Add family member
-        </Button>
       </div>
     </div>
   );

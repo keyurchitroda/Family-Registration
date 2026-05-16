@@ -36,7 +36,11 @@ Redeploy after adding Blob.
 After deploy: `https://your-project.vercel.app`
 
 - App: `/` (Register, Dashboard, Admin)
-- API health: `/api/health` → `{ "ok": true, "storage": "excel-blob" }`
+- API health: `/api/health` → `{ "ok": true, "storage": "excel-blob", "blobConfigured": true }`
+
+If `blobConfigured` is **false**, registration saves **will not work** on Vercel (connect Blob and redeploy).
+
+If `/api/health` returns **404** or HTML, push the latest code (uses `api/[[...slug]].ts` so all `/api/*` routes work).
 
 ## 6. Upload existing Excel (optional)
 
