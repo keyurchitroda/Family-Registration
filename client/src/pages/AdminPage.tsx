@@ -29,6 +29,11 @@ import { AdminMemberTokens } from '../components/AdminMemberTokens';
 import { getTokenStats, tokenPendingPresentHint, tokenSummaryLabel } from '../utils/tokens';
 import { extraMemberSlotCount } from '../utils/presentMembers';
 import { recoverRegistration } from '../utils/recoverRegistration';
+import {
+  refreshRegistrationCaches,
+  removeRegistrationFromCaches,
+  upsertRegistrationInCaches,
+} from '../lib/registrationCache';
 import { cn } from '../lib/utils';
 
 export function AdminPage() {
@@ -37,9 +42,10 @@ export function AdminPage() {
   const [date, setDate] = useState('');
   const dq = useDebounce(q, 250);
 
-  const { data = [], isPending, refetch } = useQuery({
+  const { data = [], isPending, isFetching } = useQuery({
     queryKey: ['admin-list', dq, date],
     queryFn: () => listRegistrations({ q: dq, date: date || undefined }),
+    placeholderData: (prev) => prev,
   });
 
   const corruptRows = useMemo(() => data.filter((r) => r.isCorrupt), [data]);
@@ -73,34 +79,32 @@ export function AdminPage() {
       await updateRegistration(edit.rowIndex, payload);
     },
     onSuccess: () => {
-      toast.success('Updated');
+      if (edit) {
+        upsertRegistrationInCaches(qc, recoverRegistration(edit));
+      }
       setEdit(null);
-      void qc.invalidateQueries({ queryKey: ['admin-list'] });
-      void qc.invalidateQueries({ queryKey: ['stats'] });
+      toast.success('Updated');
+      void refreshRegistrationCaches(qc);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const invalidate = () => {
-    void qc.invalidateQueries({ queryKey: ['admin-list'] });
-    void qc.invalidateQueries({ queryKey: ['stats'] });
-    void qc.invalidateQueries({ queryKey: ['search'] });
-  };
-
   const deleteMut = useMutation({
     mutationFn: deleteRegistration,
-    onSuccess: () => {
+    onSuccess: (_data, rowIndex) => {
+      removeRegistrationFromCaches(qc, rowIndex);
       toast.success('Row deleted from Excel');
-      invalidate();
+      void refreshRegistrationCaches(qc);
     },
     onError: (e: Error) => toast.error(e.message || 'Delete failed'),
   });
 
   const repairMut = useMutation({
     mutationFn: repairRegistration,
-    onSuccess: () => {
+    onSuccess: (fixed) => {
+      upsertRegistrationInCaches(qc, recoverRegistration(fixed));
       toast.success('Row repaired and columns fixed');
-      invalidate();
+      void refreshRegistrationCaches(qc);
     },
     onError: (e: Error) => toast.error(e.message || 'Repair failed'),
   });
@@ -109,7 +113,7 @@ export function AdminPage() {
     mutationFn: repairAllCorrupt,
     onSuccess: (r) => {
       toast.success(`Fixed ${r.repaired} damaged row(s)`);
-      invalidate();
+      void refreshRegistrationCaches(qc);
     },
     onError: (e: Error) => toast.error(e.message || 'Repair failed'),
   });
@@ -178,11 +182,18 @@ export function AdminPage() {
             <Button variant="secondary" onClick={download}>
               <Download className="h-4 w-4" /> Download Excel
             </Button>
-            <Button variant="outline" onClick={() => void refetch()}>
+            <Button
+              variant="outline"
+              disabled={isFetching}
+              onClick={() => void refreshRegistrationCaches(qc)}
+            >
               Refresh
             </Button>
             <span className="text-sm text-muted-foreground">
               {stats.families} rows · {stats.present} present / {stats.members} members
+              {isFetching && !isPending && (
+                <span className="ml-2 text-primary"> · Syncing…</span>
+              )}
             </span>
           </div>
         </CardContent>

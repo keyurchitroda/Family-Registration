@@ -10,7 +10,8 @@ export function DashboardPage() {
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ['stats'],
     queryFn: fetchStats,
-    refetchInterval: 3000,
+    refetchInterval: 5000,
+    placeholderData: (prev) => prev,
   });
 
   return (

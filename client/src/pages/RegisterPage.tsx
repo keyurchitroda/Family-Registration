@@ -23,6 +23,11 @@ import {
 import { emptyMember } from '../utils/memberRelations';
 import { newMemberSlotCount } from '../utils/presentMembers';
 import { recoverRegistration } from '../utils/recoverRegistration';
+import {
+  payloadToRegistration,
+  refreshRegistrationCaches,
+  upsertRegistrationInCaches,
+} from '../lib/registrationCache';
 import { playSuccessSound } from '../utils/sound';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -153,18 +158,17 @@ export function RegisterPage() {
     mutationFn: async ({ payload, row }: { payload: RegistrationPayload; row: number | null }) => {
       if (row) {
         await updateRegistration(row, payload);
-        return 'update';
+        return { mode: 'update' as const, rowIndex: row, payload };
       }
-      await createRegistration(payload);
-      return 'create';
+      const { rowIndex } = await createRegistration(payload);
+      return { mode: 'create' as const, rowIndex, payload };
     },
-    onSuccess: (mode) => {
+    onSuccess: ({ mode, rowIndex, payload }) => {
+      upsertRegistrationInCaches(qc, payloadToRegistration(rowIndex, payload));
+      clearForm();
       playSuccessSound();
       toast.success(mode === 'update' ? 'Updated in Excel' : 'Saved to Excel');
-      void qc.invalidateQueries({ queryKey: ['stats'] });
-      void qc.invalidateQueries({ queryKey: ['search'] });
-      void qc.invalidateQueries({ queryKey: ['admin-list'] });
-      clearForm();
+      void refreshRegistrationCaches(qc);
     },
     onError: (e: Error) => toast.error(e.message || 'Save failed'),
   });

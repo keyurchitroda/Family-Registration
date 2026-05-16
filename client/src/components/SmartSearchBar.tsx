@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, Users } from 'lucide-react';
 import { searchRegistrations, type Registration } from '../services/api';
@@ -29,11 +29,11 @@ export function SmartSearchBar({ onSelect, autoFocus }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { data = [], isFetching } = useQuery({
+  const { data = [], isFetching, isFetched } = useQuery({
     queryKey: ['search', debounced],
     queryFn: () => searchRegistrations(debounced),
     enabled: debounced.trim().length >= 1,
-    staleTime: 5000,
+    placeholderData: (prev) => prev,
   });
 
   useEffect(() => {
@@ -82,7 +82,7 @@ export function SmartSearchBar({ onSelect, autoFocus }: Props) {
       </div>
       {open && (
         <ul className="absolute z-20 mt-1 max-h-80 w-full overflow-auto rounded-lg border bg-card shadow-lg">
-          {data.length === 0 && !isFetching && (
+          {data.length === 0 && isFetched && !isFetching && (
             <li className="px-4 py-3 text-sm text-muted-foreground">
               No match - enter as new family below
             </li>
