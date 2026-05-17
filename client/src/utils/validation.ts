@@ -18,8 +18,14 @@ export const registrationSchema = z
     fullName: z.string().min(2, 'Enter full name'),
     mobile: z.string().min(7, 'Enter valid mobile'),
     address: z.string().min(3, 'Enter address'),
-    totalFamily: z.coerce.number().min(1, 'At least 1'),
-    presentToday: z.coerce.number().min(0, 'Cannot be negative'),
+    totalFamily: z.coerce
+      .number()
+      .int('Must be a whole number')
+      .min(1, 'At least 1 — no minus'),
+    presentToday: z.coerce
+      .number()
+      .int('Must be a whole number')
+      .min(0, 'Cannot be negative'),
     members: z.array(memberSchema),
     notes: z.string().optional(),
   })

@@ -130,7 +130,15 @@ export function MembersTable({
               <Label className="mb-1 block text-xs font-semibold text-muted-foreground sm:sr-only">
                 Age
               </Label>
-              <Input placeholder="Age" inputMode="numeric" {...register(`members.${index}.age`)} />
+              <Input
+                placeholder="Age"
+                type="number"
+                min={0}
+                max={120}
+                step={1}
+                inputMode="numeric"
+                {...register(`members.${index}.age`)}
+              />
             </div>
             <div>
               <Label className="mb-1 block text-xs font-semibold text-muted-foreground sm:sr-only">

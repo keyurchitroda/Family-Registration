@@ -1,8 +1,9 @@
 import * as React from 'react';
 import { cn } from '../../lib/utils';
+import { blockNegativeNumberKeys } from '../../utils/numberInput';
 
 export const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<'input'>>(
-  ({ className, type, ...props }, ref) => (
+  ({ className, type, onKeyDown, ...props }, ref) => (
     <input
       type={type}
       className={cn(
@@ -10,6 +11,10 @@ export const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<'in
         className,
       )}
       ref={ref}
+      onKeyDown={(e) => {
+        if (type === 'number') blockNegativeNumberKeys(e);
+        onKeyDown?.(e);
+      }}
       {...props}
     />
   ),

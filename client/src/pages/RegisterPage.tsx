@@ -289,11 +289,25 @@ export function RegisterPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="totalFamily">Total family members</Label>
-                <Input id="totalFamily" type="number" {...register('totalFamily')} />
+                <Input
+                  id="totalFamily"
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  {...register('totalFamily', { valueAsNumber: true })}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="presentToday">Present today</Label>
-                <Input id="presentToday" type="number" {...register('presentToday')} />
+                <Input
+                  id="presentToday"
+                  type="number"
+                  min={0}
+                  step={1}
+                  inputMode="numeric"
+                  {...register('presentToday', { valueAsNumber: true })}
+                />
                 {formState.errors.presentToday && (
                   <p className="text-sm text-red-600">{formState.errors.presentToday.message}</p>
                 )}

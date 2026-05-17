@@ -1,16 +1,16 @@
 import type { Request, Response } from 'express';
-import fs from 'fs/promises';
 import { isSameDay, parseISO } from '../utils/date.js';
 import type { FamilyMember } from '../types.js';
 import {
   appendRegistration,
+  buildExcelExportBuffer,
   deleteRow,
   fetchAllRows,
-  getExcelFilePath,
+  findByMobileNorm,
   repairAllCorruptRows,
   repairRow,
   updateRegistration,
-} from '../services/excelService.js';
+} from '../services/registrationStore.js';
 
 function normalizeMobile(m: string): string {
   return m.replace(/\D/g, '');
@@ -74,9 +74,7 @@ export async function findByMobile(req: Request, res: Response): Promise<void> {
     return;
   }
   const norm = normalizeMobile(mobile);
-  const rows = await fetchAllRows();
-  const matches = rows.filter((r) => normalizeMobile(r.mobile) === norm);
-  const latest = matches.sort((a, b) => b.rowIndex - a.rowIndex)[0];
+  const latest = await findByMobileNorm(norm);
   res.json({ found: Boolean(latest), registration: latest ?? null });
 }
 
@@ -142,14 +140,18 @@ function validateBody(body: BodyPayload, res: Response): boolean {
     res.status(400).json({ error: 'Full name and mobile are required' });
     return false;
   }
-  if (typeof body.totalFamily !== 'number' || body.totalFamily < 1) {
-    res.status(400).json({ error: 'Total family must be at least 1' });
+  const totalFamily = Math.floor(Number(body.totalFamily));
+  const presentToday = Math.floor(Number(body.presentToday));
+  if (!Number.isFinite(totalFamily) || totalFamily < 1) {
+    res.status(400).json({ error: 'Total family must be at least 1 (no minus)' });
     return false;
   }
-  if (typeof body.presentToday !== 'number' || body.presentToday < 0) {
-    res.status(400).json({ error: 'Present today invalid' });
+  if (!Number.isFinite(presentToday) || presentToday < 0) {
+    res.status(400).json({ error: 'Present today cannot be negative' });
     return false;
   }
+  body.totalFamily = totalFamily;
+  body.presentToday = presentToday;
   if (!Array.isArray(body.members)) {
     res.status(400).json({ error: 'Members must be an array' });
     return false;
@@ -221,8 +223,7 @@ export async function repairAll(_req: Request, res: Response): Promise<void> {
 }
 
 export async function exportExcel(_req: Request, res: Response): Promise<void> {
-  const filePath = await getExcelFilePath();
-  const buf = await fs.readFile(filePath);
+  const buf = await buildExcelExportBuffer();
   res.setHeader('Content-Disposition', 'attachment; filename="registrations.xlsx"');
   res.setHeader(
     'Content-Type',

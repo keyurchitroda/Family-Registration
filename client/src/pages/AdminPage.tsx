@@ -30,6 +30,7 @@ import { getTokenStats, tokenPendingPresentHint, tokenSummaryLabel } from '../ut
 import { extraMemberSlotCount } from '../utils/presentMembers';
 import { recoverRegistration } from '../utils/recoverRegistration';
 import { hardRefreshAfterSave, removeRegistrationFromCaches } from '../lib/registrationCache';
+import { sanitizeCount } from '../utils/numberInput';
 import { cn } from '../lib/utils';
 
 export function AdminPage() {
@@ -362,13 +363,23 @@ export function AdminPage() {
               <div className="grid grid-cols-2 gap-2">
                 <Input
                   type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
                   value={edit.totalFamily}
-                  onChange={(e) => setEdit({ ...edit, totalFamily: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setEdit({ ...edit, totalFamily: sanitizeCount(e.target.value, 1) })
+                  }
                 />
                 <Input
                   type="number"
+                  min={0}
+                  step={1}
+                  inputMode="numeric"
                   value={edit.presentToday}
-                  onChange={(e) => setEdit({ ...edit, presentToday: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setEdit({ ...edit, presentToday: sanitizeCount(e.target.value, 0) })
+                  }
                 />
               </div>
               <Textarea

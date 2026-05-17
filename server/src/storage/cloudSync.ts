@@ -1,19 +1,26 @@
+import { config } from '../config.js';
 import { blobEnabled, pullExcelFromBlob, pushExcelToBlob } from './blobSync.js';
 import { kvEnabled, pullExcelFromKv, pushExcelToKv } from './kvSync.js';
 import { pullExcelFromRedis, pushExcelToRedis, redisEnabled } from './redisSync.js';
 
 export type CloudStorageMode =
+  | 'mongodb'
   | 'excel-local'
   | 'excel-blob'
   | 'excel-kv'
   | 'excel-redis'
   | 'excel-vercel-no-storage';
 
+export function mongoEnabled(): boolean {
+  return Boolean(config.mongodbUri);
+}
+
 export function cloudStorageEnabled(): boolean {
-  return blobEnabled() || kvEnabled() || redisEnabled();
+  return mongoEnabled() || blobEnabled() || kvEnabled() || redisEnabled();
 }
 
 export function storageMode(): CloudStorageMode {
+  if (mongoEnabled()) return 'mongodb';
   if (!process.env.VERCEL) {
     if (blobEnabled()) return 'excel-blob';
     if (kvEnabled()) return 'excel-kv';
@@ -70,23 +77,26 @@ export function vercelStorageSetupMessage(): string {
 }
 
 export function storageHealthInfo(): {
+  mongoConfigured: boolean;
   blobConfigured: boolean;
   kvConfigured: boolean;
   redisConfigured: boolean;
   setupHint?: string;
 } {
+  const mongoConfigured = mongoEnabled();
   const blobConfigured = blobEnabled();
   const kvConfigured = kvEnabled();
   const redisConfigured = redisEnabled();
-  const ok = blobConfigured || kvConfigured || redisConfigured;
+  const ok = mongoConfigured || blobConfigured || kvConfigured || redisConfigured;
 
   return {
+    mongoConfigured,
     blobConfigured,
     kvConfigured,
     redisConfigured,
     setupHint:
       process.env.VERCEL && !ok
-        ? 'FREE: Vercel Dashboard → Storage → Blob → Connect project → Redeploy'
+        ? 'Set MONGODB_URI in Vercel env, or connect Blob — then Redeploy'
         : undefined,
   };
 }

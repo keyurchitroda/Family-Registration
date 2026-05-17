@@ -461,3 +461,35 @@ export async function getExcelFilePath(): Promise<string> {
   await loadWorkbook();
   return config.excelPath;
 }
+
+/** Build .xlsx in memory (Mongo export or download). */
+export async function buildExcelBufferFromRows(rows: Registration[]): Promise<Buffer> {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet(config.sheetName);
+  ws.addRow([...HEADER]);
+  ws.getRow(1).font = { bold: true };
+  for (const r of rows) {
+    const row = ws.addRow([]);
+    writeDataRow(
+      row,
+      {
+        fullName: r.fullName,
+        mobile: r.mobile,
+        address: r.address,
+        totalFamily: r.totalFamily,
+        presentToday: r.presentToday,
+        tokenGiven: r.tokenGiven,
+        members: r.members,
+        notes: r.notes,
+      },
+      r.time || new Date().toISOString(),
+    );
+  }
+  const buf = await wb.xlsx.writeBuffer();
+  return Buffer.from(buf);
+}
+
+export async function buildExcelFileBuffer(): Promise<Buffer> {
+  const rows = await fetchAllRows();
+  return buildExcelBufferFromRows(rows);
+}
