@@ -19,7 +19,7 @@ export function DashboardPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-black sm:text-3xl">Live dashboard</h2>
-          <p className="text-muted-foreground">Counts refresh every few seconds from local Excel.</p>
+          <p className="text-muted-foreground">Counts refresh every few seconds from the database.</p>
         </div>
         <Button asChild size="lg" variant="secondary" className="shrink-0">
           <Link to="/register">
