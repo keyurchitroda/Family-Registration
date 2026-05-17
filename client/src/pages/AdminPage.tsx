@@ -172,9 +172,9 @@ export function AdminPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" onClick={download}>
+            {/* <Button variant="secondary" onClick={download}>
               <Download className="h-4 w-4" /> Download Excel
-            </Button>
+            </Button> */}
             <Button
               variant="outline"
               disabled={isFetching}
