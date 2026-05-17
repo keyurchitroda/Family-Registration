@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Download, Pencil, Trash2, Wrench } from 'lucide-react';
+import { 
+  // Download,
+   Pencil, Trash2, Wrench } from 'lucide-react';
 import {
   deleteRegistration,
-  exportRegistrationsExcel,
+  // exportRegistrationsExcel,
   listRegistrations,
   repairAllCorrupt,
   repairRegistration,
@@ -111,19 +113,19 @@ export function AdminPage() {
     onError: (e: Error) => toast.error(e.message || 'Repair failed'),
   });
 
-  const download = async () => {
-    try {
-      const blob = await exportRegistrationsExcel();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'registrations.xlsx';
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      toast.error('Download failed');
-    }
-  };
+  // const download = async () => {
+  //   try {
+  //     const blob = await exportRegistrationsExcel();
+  //     const url = URL.createObjectURL(blob);
+  //     const a = document.createElement('a');
+  //     a.href = url;
+  //     a.download = 'registrations.xlsx';
+  //     a.click();
+  //     URL.revokeObjectURL(url);
+  //   } catch {
+  //     toast.error('Download failed');
+  //   }
+  // };
 
   return (
     <div className="space-y-4">
